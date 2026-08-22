@@ -1,0 +1,67 @@
+name: KriptoStream JFrog OIDC
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      BUILD_NAME: krypto-build
+      BUILD_NUMBER: ${{ github.run_number }}
+      PROJECT_KEY: krypto-data
+      JF_URL: https://trial83ylto.jfrog.io
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JFrog CLI with OIDC
+        uses: jfrog/setup-jfrog-cli@v4
+        env:
+          JF_URL: ${{ env.JF_URL }}
+        with:
+          oidc-provider-name: krypto-data-github-oidc
+          oidc-audience: krypto-data-github-oidc
+
+      - name: Verify JFrog connectivity
+        run: jf rt ping
+
+      - name: Create DLT manifest
+        run: echo "KriptoStream DLT manifest" > dlt-manifest.txt
+
+      - name: Upload artifact
+        run: |
+          jf rt upload \
+            "dlt-manifest.txt" \
+            "krypto-data-npm-dev-local/dlt/dlt-manifest.txt" \
+            --build-name="${BUILD_NAME}" \
+            --build-number="${BUILD_NUMBER}" \
+            --project="${PROJECT_KEY}"
+
+      - name: Collect build environment
+        run: |
+          jf rt build-collect-env \
+            "${BUILD_NAME}" \
+            "${BUILD_NUMBER}" \
+            --project="${PROJECT_KEY}"
+
+      - name: Collect Git metadata
+        run: |
+          jf rt build-add-git \
+            "${BUILD_NAME}" \
+            "${BUILD_NUMBER}" \
+            --project="${PROJECT_KEY}"
+
+      - name: Publish Build Info
+        run: |
+          jf rt build-publish \
+            "${BUILD_NAME}" \
+            "${BUILD_NUMBER}" \
+            --project="${PROJECT_KEY}" \
+            --build-url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
